@@ -1,243 +1,252 @@
-# Quantum Computing — Construct + PsiQuantum Workbench
+# Quantum Computing — IBM Quantum Composer + Qiskit
 
-Guida operativa del progetto `quantum-computing`.
+Guida operativa del repository `quantum-computing`. Ultimo aggiornamento: **22 novembre 2026**.
 
-Questo repository contiene un circuito **Bell State Pairs** creato con **PsiQuantum Construct Circuit Designer** e un piccolo programma Python (`construct_workbench_bridge.py`) che legge il file `.circuit` e ne simula le operazioni supportate con **PsiQDK Workbench**.
+Il progetto esplora gli **stati di Bell** usando circuiti progettati graficamente con [IBM Quantum Composer](https://quantum.cloud.ibm.com/composer), salvati come **OpenQASM 3** ed eseguiti in Python tramite **Qiskit** e il simulatore locale **Qiskit Aer**.
 
-> **Flusso effettivo:** modifica in Circuit Designer → salva/esporta il file `.circuit` → aggiorna il file nel progetto → esegui la simulazione da PyCharm/WSL. **Non** esiste, in questa configurazione, una sincronizzazione istantanea del browser con Workbench. Il bridge è un componente didattico del progetto, **non** un importatore ufficiale PsiQuantum.
+**Stato verificato:** simulazione ideale e campionamento locale di un circuito a **2 qubit / 1 coppia** e di un circuito a **4 qubit / 2 coppie**. **Non abbiamo ancora inviato lavori a un processore quantistico IBM fisico.**
 
-Per la spiegazione delle formule, delle porte, dei risultati e della tecnologia fotonica, consulta [README_FISICA_E_TECNOLOGIA.md](README_FISICA_E_TECNOLOGIA.md).
+Per matematica, interpretazione dei risultati e tecnologia dei qubit superconduttori, vedere [README_FISICA_E_TECNOLOGIA.md](README_FISICA_E_TECNOLOGIA.md).
 
-## 1. Stato del progetto e ambiente verificato
+## 1. Obiettivo e flusso di lavoro
 
-| Componente | Configurazione usata |
+```text
+IBM Quantum Composer (editor grafico / codice OpenQASM 3)
+          │  File → Salva file
+          ▼
+       circuito.qasm
+          │  Copia nella directory del progetto WSL, se necessario
+          ▼
+PyCharm (editor) + terminale Ubuntu WSL2
+          │
+          ▼
+python simulate_qasm.py circuito.qasm
+          │
+          ├── Qiskit: importa il circuito e calcola le probabilità ideali
+          └── Qiskit Aer: campiona 1.024 misurazioni simulate
+```
+
+**Un'unica sorgente per il circuito:** il `.qasm` esportato da Composer. Lo script `simulate_qasm.py` **non contiene porte H o CNOT specifiche**: le importa dal file. Se il circuito grafico cambia, si salva di nuovo il `.qasm` e si riesegue **lo stesso programma**.
+
+**Limite importante:** Composer **non sincronizza automaticamente** i salvataggi con PyCharm. Il file va esportato/salvato e, se necessario, copiato nel progetto. Non è previsto un processo che controlli continuamente il filesystem.
+
+## 2. Ambiente usato
+
+| Componente | Configurazione |
 |---|---|
-| PC / IDE | Windows + PyCharm |
-| Esecuzione Python | Ubuntu 26.04 LTS su WSL2 |
-| Progetto Linux | `/home/lucat/projects/quantum-computing` |
-| Python del progetto | `.venv/bin/python` — 3.12.16 |
-| Gestione Python / venv | `uv` |
-| PsiQDK | 2.5.0 |
-| PsiQDK Workbench | 4.55.3 |
-| File sorgente grafico | `bell_pairs.circuit` |
-| Script di conversione | `construct_workbench_bridge.py` |
-| Branch Git principale | `main` |
+| IDE | PyCharm su Windows |
+| Sistema di esecuzione | Ubuntu 26.04 LTS su WSL2 |
+| Directory Linux | `/home/lucat/projects/quantum-computing` |
+| Python nel progetto | `.venv/bin/python`, versione 3.12.16 |
+| Gestione interprete e dipendenze | `uv` |
+| Librerie | `qiskit`, `qiskit-aer`, `qiskit-qasm3-import` |
+| Aer verificato | 0.18.4 |
+| Versionamento | Git, branch `main` |
 
-### File principali
+Il progetto è aperto in PyCharm attraverso `\\wsl$\Ubuntu\home\lucat\projects\quantum-computing`. Se l'IDE non offre un interprete WSL configurabile, il metodo **già collaudato** è eseguire i comandi dal terminale Ubuntu: non selezionare per errore un Python Windows.
+
+### File del progetto
 
 ```text
 quantum-computing/
 ├── .gitignore
-├── .venv/                           # Ambiente locale; escluso da Git
-├── 01_hadamard.py                   # Esercizio separato: singolo qubit
-├── bell_pairs.circuit               # Sorgente grafico salvato da Construct
-├── construct_workbench_bridge.py   # Interprete didattico .circuit → Workbench
-├── README.md                        # Questa guida operativa
-└── README_FISICA_E_TECNOLOGIA.md   # Fisica, tecnologia e risultati
+├── .venv/                         # Ambiente virtuale locale, NON versionare
+├── bell_pair_2q.qasm              # Sorgente Composer: 1 coppia di Bell
+├── bell_pairs_4q.qasm             # Sorgente Composer: 2 coppie di Bell
+├── simulate_qasm.py               # Importatore + simulazione di qualsiasi circuito supportato
+├── bell_pairs_4q.py               # Esercizio Python equivalente, costruito esplicitamente
+├── README.md                      # Guida operativa
+└── README_FISICA_E_TECNOLOGIA.md # Teoria e risultati
 ```
 
-## 2. Ruolo dei componenti
+`bell_pairs_4q.py` resta un esercizio utile, ma il flusso **preferito** è `*.qasm → simulate_qasm.py`, così le modifiche eseguite in Composer sono la sorgente del calcolo.
 
-1. **Circuit Designer**: si disegnano registri e porte; serve anche a gestire Routine, etichette LaTeX e stile del diagramma. Non è il motore che ha prodotto le probabilità.
-2. **File `.circuit`**: è un documento JSON che conserva la struttura del diagramma. Nel nostro caso i nodi sono in `root.children`; le porte sono annidate nella Routine `Bell Pairs`.
-3. **`construct_workbench_bridge.py`**: legge il JSON, attraversa la Routine, interpreta le porte supportate e crea un modello equivalente con le API Python di Workbench.
-4. **PsiQDK Workbench**: esegue **una simulazione ideale dello stato quantistico** e stampa ampiezze e probabilità. Non invia il circuito a un computer quantistico fisico.
-5. **PyCharm**: è l'editor. Poiché l'interprete è Linux e l'IDE gira su Windows, il metodo già funzionante è eseguire i comandi nel terminale WSL.
+## 3. Preparazione dell'ambiente (solo per una nuova installazione)
 
-## 3. Preparazione dell'ambiente (solo su un nuovo PC o ambiente)
-
-Per il progetto attuale questi passaggi sono **già stati completati**. Servono come promemoria per riprodurre la configurazione.
-
-Da PowerShell si entra in Ubuntu con:
-
-```powershell
-wsl -d Ubuntu
-```
-
-Da Ubuntu, installato `uv` (vedere la [documentazione di uv](https://docs.astral.sh/uv/getting-started/installation/)):
+Da Windows, avviare Ubuntu con `wsl -d Ubuntu`. Nel terminale Ubuntu:
 
 ```bash
 cd ~/projects/quantum-computing
+
+# Solo se manca l'ambiente virtuale
 ~/.local/bin/uv python install 3.12
 ~/.local/bin/uv venv --python 3.12 .venv
-~/.local/bin/uv pip install --python .venv/bin/python psiqdk
+
+# Dipendenze Python per gli esperimenti correnti
+~/.local/bin/uv pip install --python .venv/bin/python \
+    qiskit qiskit-aer qiskit-qasm3-import
+
+# Verifica
+.venv/bin/python -c "import qiskit, qiskit_aer; print('Qiskit:', qiskit.__version__, 'Aer:', qiskit_aer.__version__)"
 ```
 
-Verifiche:
+Per il progetto attuale le librerie sono **già state installate**: non serve ripetere la preparazione. Non modificare Python di sistema e non caricare `.venv/` su Git.
 
-```bash
-.venv/bin/python --version
-.venv/bin/psiqdk
+## 4. Costruire e salvare i circuiti in IBM Composer
+
+Aprire [IBM Quantum Composer](https://quantum.cloud.ibm.com/composer). È possibile creare o modificare il circuito sia trascinando le porte nell'interfaccia sia scrivendo **OpenQASM 3** nel pannello a destra. Il grafico e il codice restano allineati **all'interno di Composer**.
+
+### Esperimento A — 2 qubit, una coppia di Bell
+
+Sorgente di `bell_pair_2q.qasm`:
+
+```qasm
+OPENQASM 3.0;
+include "stdgates.inc";
+
+qubit a;
+qubit b;
+
+h a;
+cx a, b;
 ```
 
-Nell'ambiente usato durante l'esercizio sono state verificate **Python 3.12.16**, **PsiQDK 2.5.0**, **Workbench 4.55.3** e la dicitura `All dependencies satisfied`.
+- `h a`: Hadamard su `a`, inizializzato a `|0⟩`.
+- `cx a, b`: CNOT con `a` come controllo e `b` come bersaglio.
+- Il pannello **Probabilità** di Composer mostra `00` e `11` con probabilità del **50%** ciascuno.
 
-> Non cambiare il `python3` di sistema per questo progetto e non aggiungere `.venv/` al repository Git.
+### Esperimento B — 4 qubit, due coppie di Bell
 
-## 4. Modificare il circuito in Construct
+Sorgente di `bell_pairs_4q.qasm`:
 
-Aprire [Circuit Designer](https://construct.psiquantum.com/cd) e caricare/aprire `bell_pairs.circuit` se necessario. La versione realizzata contiene:
+```qasm
+OPENQASM 3.0;
+include "stdgates.inc";
 
-- due registri, `r1` etichettato `|a⟩` e `r3` etichettato `|b⟩`;
-- il registro `r2`, presente nel JSON ma non impiegato nella simulazione;
-- la Routine grafica **Bell Pairs** (di colore viola);
-- una porta **Hadamard** applicata al registro `r1`;
-- tre porte **CNOT**: `r1[0] → r3[0]`, `r1[1] → r3[1]`, `r1[3] → r3[3]`;
-- un'etichetta LaTeX con lo stato finale simbolico.
+qubit[2] a;
+qubit[2] b;
 
-**Salvataggio**
+h a[0];
+cx a[0], b[0];
 
-1. Eseguire la modifica desiderata nel browser.
-2. Utilizzare **File → Save** oppure **Save As**, ottenendo la versione aggiornata del file `.circuit` sul computer. Può essere richiesto il login a Circuit Designer.
-3. Fare in modo che **il file aggiornato sostituisca** `bell_pairs.circuit` nella cartella del progetto WSL; un file rimasto nella cartella Download non viene letto automaticamente dallo script.
+h a[1];
+cx a[1], b[1];
+```
 
-Se il browser ha salvato il file nella cartella Download di Windows, da Ubuntu si può copiarlo così (adattare il nome se Chrome ha aggiunto un suffisso):
+- Qubit: `a[0]`, `a[1]`, `b[0]`, `b[1]`.
+- Due Hadamard e due CNOT: preparazione indipendente delle coppie `(a[0], b[0])` e `(a[1], b[1])`.
+- Probabilità ideali: `0000`, `0101`, `1010`, `1111` **25%** ciascuno.
+
+**Salvataggio:** in Composer scegliere **Salva file** (o **File → Salva file**), assegnando i nomi sopra. Si salva il sorgente `.qasm`, non soltanto una figura `.png` o `.svg`. Per riaprire un circuito usare **File → Upload .qasm file**. Il pannello *Sfera Q* non è una misura fisica: visualizza ampiezze/fasi del modello.
+
+## 5. Portare il `.qasm` nel progetto WSL
+
+Se il browser ha scaricato i file in `C:\Users\lucat\Downloads`, da Ubuntu:
 
 ```bash
 cd ~/projects/quantum-computing
-cp /mnt/c/Users/lucat/Downloads/bell_pairs.circuit ./bell_pairs.circuit
+cp /mnt/c/Users/lucat/Downloads/bell_pair_2q.qasm .
+cp /mnt/c/Users/lucat/Downloads/bell_pairs_4q.qasm .
 ```
 
-In alternativa, da Esplora file di Windows si raggiunge la cartella Linux attraverso:
+Se i file sono già nella directory del progetto, non occorre copiarli. In caso di omonimia verificare che il file locale contenga davvero **quattro** qubit prima di eseguire il secondo esperimento; il nome `4q` da solo non garantisce che la struttura sia corretta.
 
-```text
-\\wsl$\Ubuntu\home\lucat\projects\quantum-computing
+## 6. Simulare il circuito esportato: `simulate_qasm.py`
+
+La versione verificata dello script applica questo procedimento:
+
+```python
+import sys
+from qiskit import qasm3
+from qiskit.quantum_info import Statevector
+from qiskit_aer import AerSimulator
+
+file_qasm = sys.argv[1]
+circuit = qasm3.load(file_qasm)
+
+print("=== CIRCUITO IMPORTATO DA COMPOSER ===")
+print(circuit.draw(output="text"))
+
+state = Statevector.from_instruction(circuit)
+print("\n=== PROBABILITÀ TEORICHE ===")
+for bits, probability in sorted(state.probabilities_dict().items()):
+    if probability > 1e-10:
+        print(f"|{bits}> = {probability * 100:.2f}%")
+
+measured = circuit.copy()
+measured.measure_all()
+result = AerSimulator().run(measured, shots=1024).result()
+
+print("\n=== 1024 MISURAZIONI SIMULATE ===")
+for bits, count in sorted(result.get_counts().items()):
+    print(f"|{bits}> = {count}")
 ```
 
-Non usare **Download as SVG** al posto del `.circuit`: l'SVG è un'immagine, non contiene il documento strutturato che il bridge deve leggere.
+**Ambito dello script:** i due file attuali non contengono misurazioni: lo script le aggiunge **soltanto a una copia**, per il campionamento. Non è ancora un esecutore generale di qualunque OpenQASM 3 (ad esempio, misure intermedie, reset, istruzioni classiche o cicli richiederebbero una gestione più specifica). Non invia nulla a IBM Cloud.
 
-## 5. Controllare il circuito prima di eseguirlo
-
-Dal terminale Ubuntu integrato in PyCharm oppure da un normale terminale WSL:
+### Esecuzioni verificate
 
 ```bash
 cd ~/projects/quantum-computing
-.venv/bin/python construct_workbench_bridge.py bell_pairs.circuit --once --inspect
+.venv/bin/python simulate_qasm.py bell_pair_2q.qasm
+.venv/bin/python simulate_qasm.py bell_pairs_4q.qasm
 ```
 
-L'opzione `--inspect` **non simula**: analizza il file e mostra le operazioni riconosciute. Per il nostro documento attuale ci aspettiamo:
+| Esperimento | Esiti teorici | Misurazioni Aer effettivamente ottenute (1.024 shots) |
+|---|---|---|
+| 2 qubit | `00`, `11`: 50% ciascuno | `00`: **510**, `11`: **514** |
+| 4 qubit | `0000`, `0101`, `1010`, `1111`: 25% ciascuno | `0000`: **267**, `0101`: **272**, `1010`: **244**, `1111`: **241** |
 
-```text
-Circuito: Bell State Pairs
-Registri: r1=3 qubit, r3=3 qubit
-- gate1: hadamard  target=[('r1', 0), ('r1', 1), ('r1', 2)]  control=[]
-- gate2: cnot  target=[('r3', 0)]  control=[('r1', 0)]
-- gate3: cnot  target=[('r3', 1)]  control=[('r1', 1)]
-- gate4: cnot  target=[('r3', 2)]  control=[('r1', 2)]
-Analisi del file completata; simulazione non eseguita (--inspect).
-```
+I numeri sono **un campione simulato**, non conteggi su hardware fisico. Rieseguendo lo script i conteggi possono cambiare; le probabilità teoriche no. La spiegazione è nel [README scientifico](README_FISICA_E_TECNOLOGIA.md).
 
-Le righe complete possono includere anche avvisi sui rail simbolici e delimitatori.
+## 7. Regola pratica per modificare un circuito
 
-## 6. Simulare in Workbench
+1. Aprire il file `.qasm` in **Composer** e apportare la modifica visuale o testuale.
+2. Salvare nuovamente il sorgente `.qasm`.
+3. Aggiornare la copia nella directory Ubuntu, se è stata scaricata altrove.
+4. Rieseguire `.venv/bin/python simulate_qasm.py nome_file.qasm`.
+5. Confrontare **porte importate**, **probabilità esatte** e **conteggi simulati**.
+6. Versionare su Git i file sorgente e la documentazione verificata.
 
-Eseguire il comando **che abbiamo verificato sul progetto reale**:
+Nessuna modifica a `simulate_qasm.py` è necessaria per il semplice passaggio da una a due coppie di Bell.
 
-```bash
-.venv/bin/python construct_workbench_bridge.py bell_pairs.circuit --once
-```
+## 8. Problemi riscontrabili
 
-Il flag `--once` esegue un caricamento e una simulazione, poi termina. **È la modalità consigliata**: non occorre lasciare un processo in ascolto.
-
-Output essenziale ottenuto nell'esperimento:
-
-```text
-=== STATO FINALE ===
-|r1|r3>
-|0|0>    0.353553+0.000000j
-|1|1>    0.353553+0.000000j
-|2|2>    0.353553+0.000000j
-|3|3>    0.353553+0.000000j
-|4|4>    0.353553+0.000000j
-|5|5>    0.353553+0.000000j
-|6|6>    0.353553+0.000000j
-|7|7>    0.353553+0.000000j
-
-=== PROBABILITÀ DI MISURAZIONE ===
-|r1|r3>
-|0|0>    0.125000
-|1|1>    0.125000
-|2|2>    0.125000
-|3|3>    0.125000
-|4|4>    0.125000
-|5|5>    0.125000
-|6|6>    0.125000
-|7|7>    0.125000
-```
-
-**Significato sintetico:** lo stato finale consente otto risultati in cui i due registri coincidono; ogni esito ha probabilità 12,5%. `|7|7>` indica i due registri al valore **7 = `111` in binario**, non un qubit singolo di valore 7. La spiegazione completa è nell'altro README.
-
-### Esecuzione da PyCharm
-
-Il progetto è aperto in PyCharm tramite il percorso WSL. Se l'IDE non ha un interprete WSL configurato, **non selezionare un interprete Windows** per queste librerie: eseguire dal terminale WSL.
-
-È stato verificato anche questo comando esplicito, utilizzabile quando serve invocare WSL da Windows:
-
-```powershell
-wsl.exe -d Ubuntu --cd /home/lucat/projects/quantum-computing -- .venv/bin/python construct_workbench_bridge.py bell_pairs.circuit --once
-```
-
-Può essere richiamato da una configurazione di lancio esterna o *Shell Script* di PyCharm, purché la configurazione lo esegua **in ambiente Windows** con `wsl.exe` disponibile. Non è una configurazione Python nativa dell'IDE.
-
-## 7. Cambiare il circuito e ripetere la simulazione
-
-Il ciclo quotidiano consigliato è breve:
-
-1. **Modifica il diagramma** in Construct.
-2. **Salva** il nuovo `.circuit` e aggiorna il file nel progetto WSL.
-3. **Esegui una sola volta** il bridge con `--once`.
-4. **Confronta** il nuovo elenco di porte, le ampiezze e le probabilità.
-5. **Salva le modifiche su Git** quando il risultato è verificato.
-
-Per esempio, una porta X aggiunta in Construct può cambiare lo stato finale; la Routine viola, la sua etichetta e il colore non cambiano invece la fisica simulata.
-
-### Limiti precisi del bridge attuale
-
-Il file `construct_workbench_bridge.py` **non** è un compilatore generale di circuiti Construct.
-
-- Riconosce **Hadamard/H**, **Pauli-X/X/NOT**, **Pauli-Z/Z** e **CNOT** con un singolo controllo positivo.
-- Attraversa le Routine, ma ignora gli elementi puramente grafici (etichette, colori, gruppi, separatori) ai fini delle operazioni quantistiche.
-- Non gestisce tutte le porte che Circuit Designer consente di disegnare, né controlli negativi o multi-controllo generici: in quei casi segnala un errore invece di inventare una simulazione.
-- Nel nostro diagramma i registri sono indicati come `1,2,...,n`. I rail esplicitamente utilizzati sono `[0]`, `[1]` e `[3]`. Il bridge **comprime** `[0,1,3] → [0,1,2]`, ignora il segnaposto grafico `...` e simula **tre qubit per registro, sei in totale**.
-- La formula LaTeX del documento resta simbolica con `n`, ma **non** impone un numero arbitrario di qubit alla simulazione.
-- Il bridge usa `print_state_vector()` e `print_probabilities()`: **non misura/collassa** i registri e **non esegue su hardware fisico**.
-- Se si esegue il programma **senza `--once`**, entra in modalità di controllo periodico del file; questa modalità esiste nello script ma non è necessaria né consigliata per l'uso attuale.
-
-## 8. Errori comuni e soluzioni rapide
-
-| Sintomo | Controllo |
+| Sintomo | Cosa verificare |
 |---|---|
-| `Nessuna porta nel circuito` | Verificare di usare la versione del bridge che legge `root.children` e attraversa le Routine; non sostituire automaticamente il diagramma. |
-| `File non trovato` | Controllare directory corrente e nome esatto; il file deve essere `bell_pairs.circuit` nel progetto. |
-| Le modifiche grafiche non cambiano il risultato | È normale per colore, etichetta e Routine; le porte fisiche devono cambiare. |
-| La modifica in Construct non appare in Workbench | Il `.circuit` scaricato non ha ancora sostituito quello in WSL. |
-| `No Python interpreter configured` in PyCharm | Usare il terminale Ubuntu/WSL e `.venv/bin/python`, non l'interprete Windows. |
-| `ModuleNotFoundError: psiqdk` | Verificare di lanciare l'ambiente `.venv` e che `psiqdk` risulti installato. |
-| Porta non supportata | Il bridge ha una lista volutamente ristretta; va esteso e testato prima di fidarsi di nuove operazioni. |
+| PyCharm segnala `*.qasm` come testo semplice | Non impedisce l'esecuzione: è una questione di associazione file/syntax highlighting. |
+| `No Python interpreter configured` | Eseguire dal terminale **WSL**, usando `.venv/bin/python`. |
+| `ModuleNotFoundError: qiskit_qasm3_import` | Installare `qiskit-qasm3-import` nello stesso `.venv`. |
+| Risultati a 2 qubit lanciando `bell_pairs_4q.qasm` | Il file non è stato aggiornato dopo l'esportazione: controllare il contenuto del `.qasm`. |
+| Dati diversi tra Composer e script | Controllare che il `.qasm` locale sia l'ultima versione salvata e che non contenga misure aggiuntive. |
+| Campionamenti con conteggi diversi | È normale: 1.024 *shots* sono un campione pseudo-casuale della distribuzione ideale. |
 
-## 9. Versionare le modifiche con Git
-
-Il repository è già stato inizializzato localmente. Dopo la creazione di questi README e dopo le future modifiche:
+## 9. Git e documentazione
 
 ```bash
 cd ~/projects/quantum-computing
 git status
-git add README.md README_FISICA_E_TECNOLOGIA.md
-git commit -m "docs: guide Construct Workbench e analisi fisica"
+git add README.md README_FISICA_E_TECNOLOGIA.md \
+    bell_pair_2q.qasm bell_pairs_4q.qasm \
+    bell_pairs_4q.py simulate_qasm.py
+git commit -m "docs: documentati Composer Qiskit e risultati Bell a 2 e 4 qubit"
 git push
 ```
 
-Se il push non è stato ancora autenticato, configurare l'accesso a GitHub separatamente; non inserire una password Google nel prompt HTTPS di Git.
+Non aggiungere API key, token di accesso cloud, credenziali o l'ambiente `.venv/` a Git.
 
-## 10. Riferimenti ufficiali
+## 10. Prossima fase (NON ancora eseguita): processore quantistico IBM reale
 
-- [PsiQuantum Construct — documentazione](https://docs.construct.psiquantum.com/)
-- [Circuit Designer — Getting Started](https://docs.construct.psiquantum.com/circuit-designer/getting_started.html)
-- [Il formato `.circuit`](https://docs.construct.psiquantum.com/circuit-designer/resources/circuits_filetype.html)
-- [Circuit Designer — File Menu](https://docs.construct.psiquantum.com/circuit-designer/features/file.html)
-- [Workbench — Getting Started](https://docs.construct.psiquantum.com/psiqdk-workbench/Getting-Started.html)
-- [Workbench — simulazione dello state vector](https://docs.construct.psiquantum.com/psiqdk-workbench/howtos/Run-Statevector-Simulation.html)
+La prossima sessione servirà a eseguire **lo stesso circuito** su un processore IBM fisico, senza confondere i risultati del simulatore con quelli sperimentali. Piano di lavoro:
+
+1. Accedere a **IBM Quantum Platform** e verificare disponibilità, piano e istanza abilitata.
+2. Installare nel progetto il client IBM richiesto dalla versione corrente delle API (`qiskit-ibm-runtime`, o client indicato dalle istruzioni ufficiali aggiornate).
+3. Configurare l'autenticazione **senza salvare segreti nel repository**.
+4. Caricare il `.qasm`, aggiungere misure finali e **traspilare** per un backend QPU specifico, rispettandone le porte native e la connettività.
+5. Eseguire il job e recuperare i conteggi, l'identificativo del job e il backend utilizzato.
+6. Confrontare le frequenze sperimentali con quelle teoriche e simulate, discutendo errori di gate, misura e decoerenza.
+
+**Non è stata effettuata alcuna sottomissione hardware né creato uno script operativo di invio.** La procedura esatta verrà definita con le API e con l'account effettivamente disponibili al momento dell'esecuzione.
+
+## 11. Riferimenti ufficiali
+
+- [IBM Quantum Composer](https://quantum.cloud.ibm.com/composer)
+- [Guida a Composer](https://quantum.cloud.ibm.com/docs/en/guides/composer)
+- [OpenQASM 3 e Qiskit](https://quantum.cloud.ibm.com/docs/en/guides/interoperate-qiskit-qasm3)
+- [API Qiskit `qasm3`](https://quantum.cloud.ibm.com/docs/en/api/qiskit/qasm3)
+- [Traspilazione per hardware IBM](https://quantum.cloud.ibm.com/docs/en/qiskit/transpile)
+- [IBM Quantum Platform](https://quantum.cloud.ibm.com/)
 
 ---
 
-**Documento aggiornato:** 22 novembre 2026. Basato sul file `bell_pairs.circuit`, sullo script `construct_workbench_bridge.py` e sull'output Workbench verificato durante l'esercizio.
+*Documento aggiornato il 22 novembre 2026. Risultati numerici trascritti dalle esecuzioni effettuate nel progetto; procedure hardware indicate solo come attività futura.*
