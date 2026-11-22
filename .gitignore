@@ -1,0 +1,18 @@
+# Ambiente virtuale Python
+.venv/
+venv/
+
+# Configurazioni PyCharm
+.idea/
+
+# Cache Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Metadati Windows/WSL
+*:Zone.Identifier
+
+# File temporanei
+*.log
